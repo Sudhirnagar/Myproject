@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,6 +24,7 @@ class _AuthScreenState extends State<AuthScreen> {
   var _enteredPassword = '';
   File? _selectedImage;
   var _isAuthenticating = false;
+  var _enteredUsername = '';
 
   void _submit() async {
     final isvalid = _form.currentState!.validate();
@@ -50,10 +52,21 @@ class _AuthScreenState extends State<AuthScreen> {
             .child('user_images')
             .child('${userCredentials.user!.uid}.jpg');
         await storageRef.putFile(_selectedImage!);
-        final imageUrl = storageRef.getDownloadURL();
-        print(imageUrl);
+        final imageUrl = await storageRef.getDownloadURL();
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredentials.user!.uid)
+            .set({
+          'username': _enteredUsername,
+          'email': _enteredEmail,
+          'image_url': imageUrl,
+        });
       }
     } on FirebaseAuthException catch (error) {
+      if (error.code == 'email-already-in-use') {
+        //...
+      }
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -121,6 +134,23 @@ class _AuthScreenState extends State<AuthScreen> {
                               }
                             },
                           ),
+                          if (!_islogin)
+                            TextFormField(
+                              decoration:
+                                  const InputDecoration(labelText: 'username'),
+                              enableSuggestions: false,
+                              validator: (value) {
+                                if (value == null ||
+                                    value.trim().length < 4 ||
+                                    value.isEmpty) {
+                                  return 'Please enter atleast 4 characters.';
+                                }
+                                return null;
+                              },
+                              onSaved: (value) {
+                                _enteredUsername = value!;
+                              },
+                            ),
                           TextFormField(
                             decoration: const InputDecoration(
                               labelText: 'Password',
